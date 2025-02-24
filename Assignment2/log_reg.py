@@ -186,3 +186,31 @@ plt.legend()
 plt.grid()
 plt.show()
 
+# Random Forest and SVM
+from sklearn.ensemble import RandomForestClassifier
+from sklearn.svm import SVC
+from sklearn.metrics import accuracy_score
+
+# Load dataset
+(train_images_full, train_labels_full), (test_images, test_labels) = fashion_mnist.load_data()
+
+# Flatten images (28x28 → 784)
+train_images = train_images_full.reshape(-1, 784)
+test_images = test_images.reshape(-1, 784)
+
+# Train Random Forest
+rf_clf = RandomForestClassifier(n_estimators=100, random_state=42)
+rf_clf.fit(train_images, train_labels_full)
+rf_preds = rf_clf.predict(test_images)
+rf_acc = accuracy_score(test_labels, rf_preds)
+
+# Train SVM
+svm_clf = SVC(kernel='rbf', C=1.0, gamma='scale')
+svm_clf.fit(train_images, train_labels_full)
+svm_preds = svm_clf.predict(test_images)
+svm_acc = accuracy_score(test_labels, svm_preds)
+
+print(f"Random Forest Test Accuracy: {rf_acc:.4f}")
+print(f"SVM Test Accuracy: {svm_acc:.4f}")
+
+
