@@ -1,176 +1,188 @@
-""" 
-author:-aam35
+"""
+author: nn454
 """
 import os
-os.environ['TF_CPP_MIN_LOG_LEVEL']='2'
+os.environ['TF_CPP_MIN_LOG_LEVEL'] = '2'
 
 import numpy as np
 import tensorflow as tf
-tf.enable_eager_execution()
 import time
 import matplotlib.pyplot as plt
-from sklearn.metrics import confusion_matrix
+from sklearn.metrics import accuracy_score
 
-import utils
-tf.executing_eagerly()
-# Define paramaters for the model
-learning_rate = None
-batch_size = None
-n_epochs = None
-n_train = None
-n_test = None
-
-# Step 1: Read in data
-fmnist_folder = 'None'
-#Create dataset load function [Refer fashion mnist github page for util function]
-#Create train,validation,test split
-#train, val, test = utils.read_fmnist(fmnist_folder, flatten=True)
-
-# Step 2: Create datasets and iterator
-# create training Dataset and batch it
-train_data = None
-
-# create testing Dataset and batch it
-test_data = None
-#############################
-########## TO DO ############
-#############################
+from tensorflow.keras.datasets import fashion_mnist
+from sklearn.model_selection import train_test_split
 
 
-# create one iterator and initialize it with different datasets
-iterator = tf.data.Iterator.from_structure(train_data.output_types, 
-                                           train_data.output_shapes)
-img, label = iterator.get_next()
-
-train_init = iterator.make_initializer(train_data)	# initializer for train_data
-test_init = iterator.make_initializer(test_data)	# initializer for train_data
-
-# Step 3: create weights and bias
-# w is initialized to random variables with mean of 0, stddev of 0.01
-# b is initialized to 0
-# shape of w depends on the dimension of X and Y so that Y = tf.matmul(X, w)
-# shape of b depends on Y
-w, b = None, None
-#############################
-########## TO DO ############
-#############################
+tf.config.run_functions_eagerly(True)
+print("Eager execution:", tf.executing_eagerly())  # Check if eager execution is enabled
 
 
-# Step 4: build model
-# the model that returns the logits.
-# this logits will be later passed through softmax layer
-logits = None
-#############################
-########## TO DO ############
-#############################
 
 
-# Step 5: define loss function
-# use cross entropy of softmax of logits as the loss function
-loss = None
-#############################
-########## TO DO ############
-#############################
+# Define parameters for the model
+learning_rate = 0.01
+batch_size = 128
+n_epochs = 10 # changing from 10 to 20 train longer and 10 for other cases
+n_train = 60000
+n_test = 10000
+
+# Step 1: Load Fashion MNIST dataset
+# Load dataset
+(train_images_full, train_labels_full), (test_images, test_labels) = fashion_mnist.load_data()
+
+# Split training data into 80% train, 20% validation # Changing it to 90% train and 10% validation i.e test_size=0.1
+train_images, val_images, train_labels, val_labels = train_test_split(
+    train_images_full, train_labels_full, test_size=0.2, random_state=42
+)
 
 
-# Step 6: define optimizer
-# using Adam Optimizer with pre-defined learning rate to minimize loss
-optimizer = None
-#############################
-########## TO DO ############
-#############################
+# Normalize pixel values
+train_images = train_images.astype('float32') / 255.0
+val_images = val_images.astype('float32') / 255.0  # Normalize validation set
+test_images = test_images.astype('float32') / 255.0
 
 
-# Step 7: calculate accuracy with test set
-preds = tf.nn.softmax(logits)
-correct_preds = tf.equal(tf.argmax(preds, 1), tf.argmax(label, 1))
-accuracy = tf.reduce_sum(tf.cast(correct_preds, tf.float32))
+# Flatten images for logistic regression (28x28 → 784)
+train_images = train_images.reshape(-1, 784)
+val_images = val_images.reshape(-1, 784)
+test_images = test_images.reshape(-1, 784)
 
-#Step 8: train the model for n_epochs times
-for i in range(n_epochs):
-	total_loss = 0
-	n_batches = 0
-	#Optimize the loss function
-	print("Train and Validation accuracy")
-	################################
-	###TO DO#####
-	############
-	
-#Step 9: Get the Final test accuracy
 
-#Step 10: Helper function to plot images in 3*3 grid
-#You can change the function based on your input pipeline
+# Convert labels to one-hot encoding
+train_labels = tf.one_hot(train_labels, depth=10)
+val_labels = tf.one_hot(val_labels, depth=10)  # Convert validation labels
+test_labels = tf.one_hot(test_labels, depth=10)
 
+
+# Step 2: Create datasets and iterators
+train_data = tf.data.Dataset.from_tensor_slices((train_images, train_labels)).shuffle(len(train_images)).batch(batch_size)
+val_data = tf.data.Dataset.from_tensor_slices((val_images, val_labels)).batch(batch_size)  # New validation dataset
+test_data = tf.data.Dataset.from_tensor_slices((test_images, test_labels)).batch(batch_size)
+
+
+# Step 3: Initialize weights and biases
+input_dim = 784  # 28x28 flattened image
+output_dim = 10  # 10 classes
+
+w = tf.Variable(tf.random.normal([input_dim, output_dim], stddev=0.01), dtype=tf.float32)
+b = tf.Variable(tf.zeros([output_dim]), dtype=tf.float32)
+
+train_acc_history = []
+val_acc_history = []
+
+
+# Step 4: Build model
+def logistic_regression(X):
+    return tf.matmul(X, w) + b  # Logits before applying softmax
+
+# Step 5: Define loss function (cross-entropy)
+def compute_loss(logits, labels):
+    return tf.reduce_mean(tf.nn.softmax_cross_entropy_with_logits(labels=labels, logits=logits))
+
+# Step 6: Define optimizer 
+optimizer = tf.optimizers.Adam(learning_rate) # Adam
+# optimizer = tf.optimizers.SGD(learning_rate) # SGD
+# optimizer = tf.optimizers.RMSprop(learning_rate)  # RMS
+
+
+
+# Step 7: Define accuracy calculation
+def compute_accuracy(logits, labels):
+    preds = tf.argmax(logits, axis=1)
+    actuals = tf.argmax(labels, axis=1)
+    return tf.reduce_mean(tf.cast(tf.equal(preds, actuals), tf.float32))
+
+# Step 8: Train the model
+for epoch in range(n_epochs):
+    total_loss = 0
+    n_batches = 0
+
+    for batch_x, batch_y in train_data:
+        with tf.GradientTape() as tape:
+            logits = logistic_regression(batch_x)
+            loss = compute_loss(logits, batch_y)
+
+        grads = tape.gradient(loss, [w, b])
+        optimizer.apply_gradients(zip(grads, [w, b]))
+
+        total_loss += loss.numpy()
+        n_batches += 1
+
+    train_accuracy = compute_accuracy(logistic_regression(train_images), train_labels)
+    val_accuracy = compute_accuracy(logistic_regression(val_images), val_labels)  # Use new validation set
+
+    train_acc_history.append(train_accuracy.numpy())
+    val_acc_history.append(val_accuracy.numpy())
+
+
+
+    # print(f"Epoch {epoch + 1}, Loss: {total_loss / n_batches:.4f}, Train Acc: {train_accuracy.numpy():.4f}, Val Acc: {val_accuracy.numpy():.4f}")
+    print(f"Epoch {epoch + 1}, Loss: {total_loss / n_batches:.4f}, Train Acc: {train_accuracy.numpy():.4f}, Val Acc: {val_accuracy.numpy():.4f}")
+
+
+# Step 9: Get final test accuracy
+test_logits = logistic_regression(test_images)
+test_accuracy = compute_accuracy(test_logits, test_labels)
+print(f"Final Test Accuracy: {test_accuracy.numpy():.4f}")
+
+# Step 10: Helper function to plot images
 def plot_images(images, y, yhat=None):
     assert len(images) == len(y) == 9
-    
-    # Create figure with 3x3 sub-plots.
+
     fig, axes = plt.subplots(3, 3)
     fig.subplots_adjust(hspace=0.3, wspace=0.3)
 
     for i, ax in enumerate(axes.flat):
-        # Plot image.
-        ax.imshow(images[i].reshape(img_shape), cmap='binary')
+        ax.imshow(images[i].reshape((28, 28)), cmap='binary')
 
-        # Show true and predicted classes.
         if yhat is None:
-            xlabel = "True: {0}".format(y[i])
+            xlabel = f"True: {y[i]}"
         else:
-            xlabel = "True: {0}, Pred: {1}".format(y[i], yhat[i])
+            xlabel = f"True: {y[i]}, Pred: {yhat[i]}"
 
         ax.set_xlabel(xlabel)
-        
-        # Remove ticks from the plot.
         ax.set_xticks([])
         ax.set_yticks([])
     plt.show()
 
-#Get image from test set 
-images = test_data[0:9]
+# Plot some test images with predictions
+images = test_images[:9]
+true_labels = tf.argmax(test_labels[:9], axis=1)
+predicted_labels = tf.argmax(logistic_regression(images), axis=1)
 
-# Get the true classes for those images.
-y = test_class[0:9]
+plot_images(images, true_labels.numpy(), predicted_labels.numpy())
 
-# Plot the images and labels using our helper-function above.
-plot_images(images=images, y=y)
+# Step 11: Plot learned weights
+def plot_weights():
+    w_min, w_max = tf.reduce_min(w).numpy(), tf.reduce_max(w).numpy()
 
-
-#Second plot weights 
-
-def plot_weights(w=None):
-    # Get the values for the weights from the TensorFlow variable.
-    #TO DO ####
-    
-    # Get the lowest and highest values for the weights.
-    # This is used to correct the colour intensity across
-    # the images so they can be compared with each other.
-    w_min = None
-    #TO DO## obtains these value from W
-    w_max = None
-
-    # Create figure with 3x4 sub-plots,
-    # where the last 2 sub-plots are unused.
     fig, axes = plt.subplots(3, 4)
     fig.subplots_adjust(hspace=0.3, wspace=0.3)
 
     for i, ax in enumerate(axes.flat):
-        # Only use the weights for the first 10 sub-plots.
-        if i<10:
-            # Get the weights for the i'th digit and reshape it.
-            # Note that w.shape == (img_size_flat, 10)
-            image = w[:, i].reshape(img_shape)
-
-            # Set the label for the sub-plot.
-            ax.set_xlabel("Weights: {0}".format(i))
-
-            # Plot the image.
+        if i < 10:
+            image = w[:, i].numpy().reshape((28, 28))
+            ax.set_xlabel(f"Weights: {i}")
             ax.imshow(image, vmin=w_min, vmax=w_max, cmap='seismic')
 
-        # Remove ticks from each sub-plot.
         ax.set_xticks([])
         ax.set_yticks([])
-        
-    # Ensure the plot is shown correctly with multiple plots
-    # in a single Notebook cell.
+
     plt.show()
+
+plot_weights()
+
+
+
+plt.figure(figsize=(8, 5))
+plt.plot(range(1, n_epochs + 1), train_acc_history, label="Train Accuracy", marker="o")
+plt.plot(range(1, n_epochs + 1), val_acc_history, label="Validation Accuracy", linestyle="dashed", marker="s")
+
+plt.xlabel("Epochs")
+plt.ylabel("Accuracy")
+plt.title("Train vs Validation Accuracy Over Time")
+plt.legend()
+plt.grid()
+plt.show()
 
