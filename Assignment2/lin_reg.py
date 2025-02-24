@@ -42,8 +42,8 @@ b = tf.Variable(0.5)  # Initializing b to 0
 # b = tf.Variable(tf.random.normal([]))
 
 # Training hyperparameters
-train_steps = 5000  
-initial_learning_rate = 0.01
+train_steps = 5000  # Changed this from 1000
+initial_learning_rate = 0.01 # Changed this from 0.001
 learning_rate = initial_learning_rate
 patience = 100  # Early stopping patience
 best_loss = float('inf')
